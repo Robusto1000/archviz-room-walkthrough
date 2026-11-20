@@ -3,10 +3,35 @@ import {SparkRenderer,SplatMesh,ExtSplats} from '@sparkjsdev/spark';
 import {validateCamera} from './camera.js';
 import {walkingSetup} from './walking.js';
 import {prepareExactExtSplats} from './ext-delivery.js';
+import {chooseProfile,readInterrupted,markAttempt,clearAttempt,validateCapabilities,loadMobileAsset,mobileMeshOptions,mobileRenderSize} from './mobile-loader.js?v=mobile-v1';
 
 const $=id=>document.getElementById(id);
 const base=new URL('./',import.meta.url);
-let renderer,scene,camera,spark,splats,manifest,navigation;
+let renderer,scene,camera,spark,splats,manifest,navigation,loadAbort,removeContextListener;
+const profile=chooseProfile(navigator);
+let failed=false,modelReady=false,firstFramePending=false;
+function attemptStorage(){try{return sessionStorage;}catch{return undefined;}}
+function waitForStart(interrupted){
+  if(!profile.requiresStart&&!interrupted)return Promise.resolve();
+  status(profile.kind==='mobile'?'Open mobile tour':'Open apartment tour',interrupted?'The previous loading attempt was interrupted. Tap to start a new session.':'Tap Start to open the touch-friendly tour.');
+  $('start-tour').hidden=false;$('start-tour').disabled=false;
+  return new Promise(resolve=>{$('start-tour').onclick=()=>{$('start-tour').hidden=true;$('start-tour').disabled=true;resolve();};});
+}
+function disposeTour(){
+  removeContextListener?.();removeContextListener=null;keys.clear();
+  const canvas=renderer?.domElement;
+  try{splats?.dispose();}catch{}splats=null;
+  try{spark?.dispose();}catch{}spark=null;
+  try{renderer?.dispose();renderer?.forceContextLoss?.();}catch{}
+  canvas?.remove();renderer=null;scene=null;
+}
+function failTour(error,{contextLost=false}={}){
+  if(failed)return;failed=true;modelReady=false;loadAbort?.abort(error);disposeTour();
+  if(!contextLost)clearAttempt(attemptStorage());
+  setBusy(false);$('progress').hidden=true;
+  status(contextLost?'Tour paused':'Unable to open the tour',contextLost?'Your browser stopped the 3D view. Return to the start screen to open a new mobile session.':error.message||'Please return to the start screen.',true);
+  $('retry').hidden=false;$('retry').disabled=false;
+}
 let dirty=true,scheduled=false,lastTime=0,lastMotion=0,frames=0,frameWindow=performance.now(),busy=false;
 const keys=new Set(),forward=new THREE.Vector3(),right=new THREE.Vector3(),delta=new THREE.Vector3(),euler=new THREE.Euler(0,0,0,'YXZ');
 
@@ -22,12 +47,13 @@ async function json(path,expectedSha){
 }
 function status(title,detail,error=false){$('status').hidden=false;$('status-title').textContent=title;$('status-detail').textContent=detail;$('status').dataset.error=String(error);}
 function setBusy(value){busy=value;for(const button of document.querySelectorAll('button'))button.disabled=value;}
-function requestFrame(){dirty=true;if(!scheduled&&!document.hidden){scheduled=true;requestAnimationFrame(animate);}}
+function requestFrame(){if(!renderer||failed)return;dirty=true;if(!scheduled&&!document.hidden){scheduled=true;requestAnimationFrame(animate);}}
 function markMotion(){const now=performance.now();if(now-lastMotion>250){frameWindow=now;frames=0;}lastMotion=now;}
 function focusViewport(){renderer?.domElement.focus({preventScroll:true});}
 function resize(){
   if(!renderer)return;
-  renderer.setSize(innerWidth,innerHeight,false);renderer.domElement.style.width='100%';renderer.domElement.style.height='100%';
+  const size=profile.kind==='mobile'?mobileRenderSize(innerWidth,innerHeight):{width:innerWidth,height:innerHeight};
+  renderer.setSize(size.width,size.height,false);renderer.domElement.style.width='100%';renderer.domElement.style.height='100%';
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();requestFrame();
 }
 function useRoom(room){
@@ -56,35 +82,57 @@ function move(dt){
 function animate(time){
   scheduled=false;const dt=Math.min(.05,lastTime?(time-lastTime)/1000:0);lastTime=time;
   const moved=move(dt);
-  if(dirty||moved){dirty=false;renderer.render(scene,camera);frames++;}
+  if(!renderer||failed)return;
+  if(dirty||moved){dirty=false;try{renderer.render(scene,camera);}catch(error){failTour(error);return;}frames++;
+    if(modelReady&&firstFramePending){firstFramePending=false;clearAttempt(attemptStorage());
+      $('status').hidden=true;setBusy(false);}}
   if(moved||time-lastMotion<180){const elapsed=time-frameWindow;if(elapsed>=400&&frames>1){$('fps').textContent=`${Math.round(frames*1000/elapsed)} fps`;frames=0;frameWindow=time;}}
   else{$('fps').textContent='Idle';frames=0;frameWindow=time;}
   if(keys.size||time-lastMotion<180)requestFrame();
 }
 function controls(){
-  let dragging=false,px=0,py=0;
-  renderer.domElement.addEventListener('pointerdown',event=>{if(event.button!==0||busy)return;focusViewport();dragging=true;px=event.clientX;py=event.clientY;renderer.domElement.setPointerCapture(event.pointerId);});
-  renderer.domElement.addEventListener('pointerup',()=>dragging=false);
-  renderer.domElement.addEventListener('pointercancel',()=>dragging=false);
-  renderer.domElement.addEventListener('dblclick',()=>{if(!busy)renderer.domElement.requestPointerLock?.();});
+  let lookPointer=null,px=0,py=0;const touchMoves=new Map();
+  const canvas=renderer.domElement;
+  canvas.addEventListener('pointerdown',event=>{
+    if(event.button!==0||busy||lookPointer!==null)return;
+    event.preventDefault();focusViewport();lookPointer=event.pointerId;px=event.clientX;py=event.clientY;canvas.setPointerCapture(event.pointerId);
+  });
+  const stopLook=event=>{if(event.pointerId===lookPointer)lookPointer=null;};
+  canvas.addEventListener('pointerup',stopLook);canvas.addEventListener('pointercancel',stopLook);
+  canvas.addEventListener('dblclick',()=>{if(!busy&&profile.kind==='desktop')canvas.requestPointerLock?.();});
   document.addEventListener('pointermove',event=>{
-    if(busy||(!dragging&&document.pointerLockElement!==renderer.domElement))return;
-    const locked=document.pointerLockElement===renderer.domElement,dx=locked?event.movementX:event.clientX-px,dy=locked?event.movementY:event.clientY-py;
+    const locked=document.pointerLockElement===canvas;
+    if(busy||(!locked&&event.pointerId!==lookPointer))return;
+    event.preventDefault();const dx=locked?event.movementX:event.clientX-px,dy=locked?event.movementY:event.clientY-py;
     px=event.clientX;py=event.clientY;euler.setFromQuaternion(camera.quaternion);
     euler.y-=dx*.0025;euler.x=THREE.MathUtils.clamp(euler.x-dy*.0025,-Math.PI*.49,Math.PI*.49);
     camera.quaternion.setFromEuler(euler);camera.updateMatrixWorld(true);markMotion();requestFrame();
-  });
+  },{passive:false});
+  for(const button of document.querySelectorAll('[data-move]')){
+    button.addEventListener('pointerdown',event=>{
+      if(busy)return;event.preventDefault();button.setPointerCapture(event.pointerId);
+      touchMoves.set(event.pointerId,button.dataset.move);keys.add(button.dataset.move);markMotion();requestFrame();
+    });
+    const release=event=>{
+      const code=touchMoves.get(event.pointerId);touchMoves.delete(event.pointerId);
+      if(code&&![...touchMoves.values()].includes(code))keys.delete(code);
+    };
+    button.addEventListener('pointerup',release);button.addEventListener('pointercancel',release);button.addEventListener('lostpointercapture',release);
+  }
   document.addEventListener('keydown',event=>{
     if(event.target.closest?.('button,select,input,textarea')||busy)return;
     if(event.code==='KeyR'){reset();return;}
     if(/^(Key[WASD]|Arrow(Up|Down|Left|Right)|Shift(Left|Right))$/.test(event.code)){event.preventDefault();keys.add(event.code);markMotion();requestFrame();}
   });
   document.addEventListener('keyup',event=>keys.delete(event.code));
-  window.addEventListener('blur',()=>keys.clear());
-  document.addEventListener('visibilitychange',()=>{keys.clear();lastTime=0;if(!document.hidden)requestFrame();});
+  window.addEventListener('blur',()=>{keys.clear();touchMoves.clear();lookPointer=null;});
+  document.addEventListener('visibilitychange',()=>{keys.clear();touchMoves.clear();lookPointer=null;lastTime=0;if(!document.hidden)requestFrame();});
   window.addEventListener('resize',resize);
   $('reset').onclick=()=>{reset();focusViewport();};
-  $('fullscreen').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+  if(!document.documentElement.requestFullscreen)$('fullscreen').hidden=true;
+  else $('fullscreen').onclick=()=>{const p=document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();p?.catch(()=>{});};
+  $('touch-controls').hidden=profile.kind!=='mobile';
+  $('instructions').textContent=profile.kind==='mobile'?'Drag to look · Hold arrows to walk':'Drag to look · Double-click to lock mouse · WASD move · Shift faster · R reset';
 }
 async function start(){
   setBusy(true);$('retry').onclick=()=>location.reload();
@@ -95,25 +143,53 @@ async function start(){
   manifest.cameraPresets.forEach(validateCamera);
   const navData=await json(manifest.navigation.path,manifest.navigation.sha256);
   navigation=walkingSetup(manifest,navData,manifest.rooms);
-  renderer=new THREE.WebGLRenderer({antialias:false,alpha:false,premultipliedAlpha:true,preserveDrawingBuffer:false,powerPreference:'high-performance'});
+  await waitForStart(readInterrupted(attemptStorage()));
+  loadAbort=new AbortController();markAttempt(attemptStorage(),profile.kind);
+  const mobileAsset=profile.kind==='mobile'?await loadMobileAsset(new URL('mobile-model.json',base),{signal:loadAbort.signal}):null;
+  status('Opening the apartment',profile.kind==='mobile'?'Loading the mobile tour…':'Loading the full desktop tour…');
+  try{renderer=new THREE.WebGLRenderer({antialias:false,alpha:false,premultipliedAlpha:true,preserveDrawingBuffer:false,powerPreference:'high-performance'});}
+  catch{throw Error('The 3D view is unavailable. Please use a recent browser with WebGL 2.');}
+  const gl=renderer.getContext();validateCapabilities({webgl2:typeof gl.texImage3D==='function'&&String(gl.getParameter(gl.VERSION)).startsWith('WebGL 2'),maxTextureSize:gl.getParameter(gl.MAX_TEXTURE_SIZE),maxArrayLayers:gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS)},profile.kind);
+  const lost=event=>{event.preventDefault();failTour(Error('WebGL context lost'),{contextLost:true});};
+  renderer.domElement.addEventListener('webglcontextlost',lost);removeContextListener=()=>renderer?.domElement.removeEventListener('webglcontextlost',lost);
   renderer.setPixelRatio(1);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.NoToneMapping;
   renderer.setClearColor(new THREE.Color().setRGB(...manifest.rasterizer.background,THREE.SRGBColorSpace),1);
   renderer.domElement.tabIndex=0;renderer.domElement.setAttribute('aria-label','Drag to look. Use W A S D or arrow keys to walk.');
   $('viewport').append(renderer.domElement);scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(manifest.controls.fov,1,manifest.rasterizer.near,manifest.rasterizer.far);
-  spark=new SparkRenderer({renderer,...manifest.renderer.options,onDirty:requestFrame});scene.add(spark);
+  spark=new SparkRenderer({renderer,...manifest.renderer.options,...(mobileAsset?.renderer??{}),onDirty:requestFrame});scene.add(spark);
   for(const room of manifest.rooms){const button=document.createElement('button');button.textContent=room.label;button.onclick=()=>{useRoom(room);focusViewport();};$('rooms').append(button);}
   controls();setBusy(false);reset();setBusy(true);$('progress').hidden=false;
-  const delivery=await prepareExactExtSplats(new URL(manifest.model.delivery,base),{expectedModel:manifest.model,manifestSha256:manifest.model.deliverySha256,ExtSplats,onProgress:event=>{
-    if(event.total>0)$('progress').value=event.loaded/event.total*100;
-    if(event.phase==='download')$('status-detail').textContent=`Downloading apartment · ${Math.round(event.loaded/1048576)} / ${Math.round(event.total/1048576)} MB`;
-    else if(event.phase==='decode')$('status-detail').textContent='Opening the apartment…';
-  }});
-  splats=new SplatMesh({...delivery.meshOptions});
-  scene.add(splats);await Promise.all([splats.initialized,delivery.verified]);
-  if(splats.numSplats!==manifest.model.pointCount)throw Error('The apartment point count could not be verified.');
-  splats.maxSh=3;splats.updateGenerator();await spark.update({scene,camera});
-  $('model-info').textContent='Work in progress · visual quality under review';
-  $('status').hidden=true;setBusy(false);requestFrame();
+  if(mobileAsset){
+    splats=new SplatMesh(mobileMeshOptions(mobileAsset));scene.add(splats);
+    await splats.initialized;
+    if(failed)throw Error('Tour loading was interrupted.');
+    splats.maxSh=3;splats.updateGenerator();await spark.update({scene,camera});
+  }else{
+    const delivery=await prepareExactExtSplats(new URL(manifest.model.delivery,base),{expectedModel:manifest.model,manifestSha256:manifest.model.deliverySha256,ExtSplats,signal:loadAbort.signal,onProgress:event=>{
+      if(event.total>0)$('progress').value=event.loaded/event.total*100;
+      if(event.phase==='download')$('status-detail').textContent='Downloading apartment · '+Math.round(event.loaded/1048576)+' / '+Math.round(event.total/1048576)+' MB';
+      else if(event.phase==='decode')$('status-detail').textContent='Opening the apartment…';
+    }});
+    splats=new SplatMesh({...delivery.meshOptions});
+    scene.add(splats);await Promise.all([splats.initialized,delivery.verified]);
+    if(splats.numSplats!==manifest.model.pointCount)throw Error('The apartment point count could not be verified.');
+    splats.maxSh=3;splats.updateGenerator();await spark.update({scene,camera});
+  }
+  if(failed)throw Error('Tour loading was interrupted.');
+  modelReady=true;firstFramePending=true;
+  $('model-info').textContent=profile.kind==='mobile'?'Mobile preview · visual quality under review':'Work in progress · visual quality under review';
+  requestFrame();
 }
-start().catch(error=>{console.error(error);splats?.dispose();setBusy(false);status('Unable to open the tour',error.message||'Please refresh this page.',true);$('retry').hidden=false;});
+if(new URL(location.href).searchParams.get('qa')==='1'){
+  Object.defineProperty(globalThis,'__archvizQA',{configurable:false,writable:false,value:()=>Object.freeze({
+    profile:{...profile},sourceMode:profile.kind==='mobile'?'mobile-paged-rad':'desktop-exact-sh3',ready:modelReady&&!firstFramePending,loading:busy,failed,
+    spark:spark?{maxPagedSplats:spark.maxPagedSplats,lodSplatCount:spark.lodSplatCount,numLodFetchers:spark.numLodFetchers,pagedExtSplats:spark.pagedExtSplats,accumExtSplats:spark.accumExtSplats,enableLod:spark.enableLod}:null,
+    numSplats:splats?.numSplats??0,maxSh:splats?.maxSh??null,
+    currentCamera:camera?{position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),fov:camera.fov}:null,
+    viewport:renderer?{width:renderer.domElement.width,height:renderer.domElement.height}:null
+  })});
+}
+start().catch(error=>failTour(error));
+
+

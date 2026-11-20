@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "ready": true,
+  "kind": "mobile-paged-rad",
+  "url": "mobile/apartment-lod.rad",
+  "bytes": 12240,
+  "sha256": "806692f1bcda3474757d56399a9b4e48ab9188470571460d040cafa94ab705a3",
+  "totalAssetBytes": 257804992,
+  "paged": true,
+  "sourceModelSha256": "b6f31ca6941ec74e8cb746ba568fb5e74fec101b1a11b66521ce0d9ea27d673c",
+  "sourcePointCount": 5059728,
+  "sourceSHDegree": 3,
+  "shDegree": 3,
+  "derivative": "Quality LoD with RAD codec quantization; original leaves retained"
+}
