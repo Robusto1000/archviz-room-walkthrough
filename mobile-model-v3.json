@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "ready": true,
+  "kind": "mobile-paged-rad",
+  "url": "mobile-v3/apartment-lod.rad",
+  "bytes": 8352,
+  "sha256": "a4c8def8c320433bf385faa26cac65db6d12726e80101d32e7c207bae39f9833",
+  "totalAssetBytes": 161031800,
+  "paged": true,
+  "sourceModelSha256": "b6f31ca6941ec74e8cb746ba568fb5e74fec101b1a11b66521ce0d9ea27d673c",
+  "sourcePointCount": 5059728,
+  "sourceSHDegree": 3,
+  "shDegree": 1,
+  "derivative": "Original mobile SH3 LoD base+SH1 streams retained byte-exact; only SH2/SH3 omitted"
+}

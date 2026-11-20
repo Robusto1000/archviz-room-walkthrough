@@ -1,9 +1,9 @@
 const SOURCE_SHA='b6f31ca6941ec74e8cb746ba568fb5e74fec101b1a11b66521ce0d9ea27d673c';
 const SHA=/^[a-f0-9]{64}$/;
 export const MOBILE_PRESETS=Object.freeze({
-  high:Object.freeze({id:'high',label:'High detail',lodSplatCount:1250000,maxPagedSplats:2097152,numLodFetchers:1,renderScale:2,maxPixels:1500000}),
-  balanced:Object.freeze({id:'balanced',label:'Balanced',lodSplatCount:750000,maxPagedSplats:1572864,numLodFetchers:1,renderScale:1.5,maxPixels:1000000}),
-  safe:Object.freeze({id:'safe',label:'Lower memory',lodSplatCount:350000,maxPagedSplats:1048576,numLodFetchers:1,renderScale:1,maxPixels:1000000})
+  high:Object.freeze({id:'high',label:'High detail',lodSplatCount:1250000,maxPagedSplats:6291456,numLodFetchers:3,renderScale:2,maxPixels:2500000}),
+  balanced:Object.freeze({id:'balanced',label:'Balanced',lodSplatCount:750000,maxPagedSplats:4194304,numLodFetchers:3,renderScale:1.5,maxPixels:1000000}),
+  safe:Object.freeze({id:'safe',label:'Lower memory',lodSplatCount:350000,maxPagedSplats:2097152,numLodFetchers:1,renderScale:1,maxPixels:1000000})
 });
 export function selectQuality(search='',selected){
   const requested=selected===undefined?new URLSearchParams(search).get('detail'):selected;
@@ -28,8 +28,8 @@ export function validateCapabilities({webgl2,maxTextureSize,maxArrayLayers},prof
 }
 export function validateMobileAsset(asset,base,quality='balanced'){
  if(asset?.schemaVersion!==1||asset.ready!==true)throw Error('The mobile tour is being prepared. The full desktop tour has not been downloaded.');
- if(asset.kind!=='mobile-paged-rad'||asset.paged!==true||asset.sourceModelSha256!==SOURCE_SHA||asset.sourcePointCount!==5059728||asset.sourceSHDegree!==3||asset.shDegree!==3||!SHA.test(asset.sha256??'')||!Number.isSafeInteger(asset.bytes)||asset.bytes<=0)throw Error('The mobile tour identity could not be verified.');
- if(typeof asset.url!=='string'||!/^mobile\/[A-Za-z0-9_.\/-]+\.rad$/.test(asset.url)||asset.url.split('/').includes('..'))throw Error('The mobile tour location is invalid.');
+ if(asset.kind!=='mobile-paged-rad'||asset.paged!==true||asset.sourceModelSha256!==SOURCE_SHA||asset.sourcePointCount!==5059728||asset.sourceSHDegree!==3||asset.shDegree!==1||asset.sha256!=='a4c8def8c320433bf385faa26cac65db6d12726e80101d32e7c207bae39f9833'||asset.bytes!==8352)throw Error('The mobile tour identity could not be verified.');
+ if(typeof asset.url!=='string'||!/^mobile-v3\/[A-Za-z0-9_.\/-]+\.rad$/.test(asset.url)||asset.url.split('/').includes('..'))throw Error('The mobile tour location is invalid.');
  const url=new URL(asset.url,base);if(!['http:','https:'].includes(url.protocol))throw Error('The mobile tour requires a web location.');
  const preset=getMobilePreset(quality);
  return{...asset,url:url.href,quality:preset.id,renderer:{enableLod:true,pagedExtSplats:false,accumExtSplats:false,lodSplatCount:preset.lodSplatCount,maxPagedSplats:preset.maxPagedSplats,numLodFetchers:preset.numLodFetchers}};

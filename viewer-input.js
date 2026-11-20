@@ -54,7 +54,7 @@ export function standaloneMode(nav, matchMediaFn) {
 /** Spark can have uploads ready even after its pager reports no queued work. */
 export function hasPendingDetail(spark) {
   if (!spark) return false;
-  if (spark.sorting || spark.sortDirty) return true;
+  if (spark.sorting || spark.sortDirty || spark.lodDirty || spark.lodInitQueue?.length || spark.lodUpdates?.length || spark.lodWorker?.queue != null || Object.keys(spark.lodWorker?.messages ?? {}).length || (spark.lastLod && spark.currentLod !== spark.lastLod)) return true;
   const pager = spark.pager;
   if (!pager) return false;
   for (const method of ['isPending', 'isFetching', 'hasQueued']) {
