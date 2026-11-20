@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "ready": true,
+  "kind": "mobile-static-spz",
+  "url": "mobile-static-v5/apartment-d36c03150eee.spz",
+  "bytes": 31834151,
+  "sha256": "d36c03150eee8212af466e707a9ba4401c22fe257ecd32eeb06f2ea8f6218fcc",
+  "pointCount": 2000000,
+  "shDegree": 1,
+  "sourceModelSha256": "b6f31ca6941ec74e8cb746ba568fb5e74fec101b1a11b66521ce0d9ea27d673c",
+  "sourcePointCount": 5059728,
+  "sourceSHDegree": 3,
+  "derivedInputPlySHA256": "079d698ffe33691fe1b9654d48e21e57f4e875e798bc9b5ff938add6554a6b13",
+  "paged": false,
+  "lod": false,
+  "hierarchy": false,
+  "opacityEncoding": "standard-0-1",
+  "status": "Compact mobile tour; full model loaded before display"
+}
