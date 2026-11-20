@@ -1,0 +1,11 @@
+{
+  "id": "./",
+  "name": "Apartment preview",
+  "short_name": "Apartment",
+  "start_url": "./?v=mobile-v2&detail=high",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#121518",
+  "theme_color": "#121518",
+  "orientation": "any"
+}

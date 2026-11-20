@@ -2,16 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Apartment"><link rel="manifest" href="./site.webmanifest?v=mobile-v2">
   <meta name="theme-color" content="#121518"><title>Apartment preview · work in progress</title>
-  <link rel="stylesheet" href="./style.css?v=mobile-v1">
+  <link rel="stylesheet" href="./style.css?v=mobile-v2">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/","@sparkjsdev/spark":"./vendor/spark.module.js"}}</script>
 </head>
 <body>
   <main id="viewport" aria-label="Interactive apartment walkthrough"></main>
   <header><div><h1 id="title">Apartment preview</h1><p id="model-info">Living room &amp; bedroom</p></div><nav aria-label="View controls"><div id="rooms"></div><button id="reset">Reset</button><button id="fullscreen">Fullscreen</button></nav></header>
-  <section id="status" role="status" aria-live="polite"><h2 id="status-title">Opening the apartment</h2><p id="status-detail">This can take a moment.</p><progress id="progress" hidden max="100"></progress><button id="start-tour" type="button" hidden>Start tour</button><button id="retry" type="button" hidden>Back to start</button></section>
-  <div id="touch-controls" aria-label="Walking controls" hidden><button data-move="KeyW" aria-label="Walk forward">↑</button><button data-move="KeyA" aria-label="Walk left">←</button><button data-move="KeyS" aria-label="Walk backward">↓</button><button data-move="KeyD" aria-label="Walk right">→</button></div><footer><span id="instructions">Drag to look · Double-click to lock mouse · WASD move · Shift faster · R reset</span><span id="fps">Idle</span></footer>
-  <script type="module" src="./app.js?v=mobile-v1"></script>
+  <section id="status" role="status" aria-live="polite"><h2 id="status-title">Opening the apartment</h2><p id="status-detail">This can take a moment.</p><div id="quality-controls" hidden><label for="quality">Quality</label><select id="quality"><option value="high">High detail</option><option value="balanced">Balanced</option><option value="safe">Lower memory</option></select></div><progress id="progress" hidden max="100"></progress><button id="start-tour" type="button" hidden>Start tour</button><button id="retry" type="button" hidden>Back to start</button></section>
+  <div id="touch-controls" hidden><div id="joystick" role="group" aria-roledescription="joystick" aria-label="Walking joystick. Drag from the center to walk."><div id="joystick-thumb" aria-hidden="true"></div></div><span aria-hidden="true">Move</span></div><footer><span id="instructions">Drag to look · Double-click to lock mouse · WASD move · Shift faster · R reset</span><span id="fps">Idle</span></footer>
+<button id="ui-toggle" type="button" aria-pressed="false">Hide controls</button>
+<button id="exit-fullscreen" type="button" hidden>Exit fullscreen</button>
+<div id="detail-status" role="status" aria-live="polite" hidden>Refining detail…</div>
+<section id="install-panel" role="dialog" aria-modal="true" aria-labelledby="install-title" hidden>
+<h2 id="install-title">Open without browser bars</h2>
+<p>Fullscreen is not available in this browser view. On iPhone, you can open this tour as a Home Screen web app:</p>
+<ol><li>Open this page in Safari and tap <strong>Share</strong>.</li><li>Choose <strong>Add to Home Screen</strong>.</li><li>Turn on <strong>Open as Web App</strong> if shown, then tap <strong>Add</strong>.</li><li>Open the new Apartment icon on your Home Screen.</li></ol>
+<p>The web app opens without Safari’s address bar. System indicators may remain. Use the Home gesture to leave the app.</p>
+<button id="install-close" type="button">Close</button></section>
+  <script type="module" src="./app.js?v=mobile-v2"></script>
 </body>
 </html>
 
