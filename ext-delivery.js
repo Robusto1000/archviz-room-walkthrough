@@ -20,10 +20,40 @@ export async function prepareExactExtSplats(manifestURL,{expectedModel,manifestS
   const progress=phase=>onProgress({phase,loaded,total,decodedBytes,totalDecoded});
   for(const name of NAMES){
     const a=manifest.arrays.find(a=>a.name===name),bytes=new Uint8Array(a.bytes);let index=0,received=0,offset=0;
-    const compressed=new ReadableStream({async pull(controller){try{
-      if(index===a.chunks.length){if(received!==a.compressed.bytes)fail('A model array download is incomplete.');controller.close();return;}
-      const item=a.chunks[index],r=await fetchImpl(chunkURL(item.path,base),{signal:abort.signal,credentials:'omit',cache:'force-cache',mode:'cors'});if(!r.ok)fail('A model download part is unavailable.');const chunk=new Uint8Array(await r.arrayBuffer());if(chunk.length!==item.bytes||await digest(chunk)!==item.sha256)fail('A model download part failed its integrity check.');index++;received+=chunk.length;loaded+=chunk.length;progress('download');controller.enqueue(chunk);
-    }catch(error){abort.abort(error);controller.error(error);}},cancel(reason){abort.abort(reason);}},{highWaterMark:0});
+    // Only one array is decoded at a time. At most four unconsumed parts
+    // (80 MiB for this model) are fetching/verifying/ready, in manifest order.
+    const pending=new Map();let next=0,streamController,firstFailure,finished=false;
+    const stop=()=>{if(finished)return;finished=true;pending.clear();abort.signal.removeEventListener('abort',stop);try{streamController.error(firstFailure??abort.signal.reason??Error('Model loading cancelled.'));}catch{}};
+    const prefetch=()=>{
+      while(!abort.signal.aborted&&next<a.chunks.length&&pending.size<4){
+        const partIndex=next++,item=a.chunks[partIndex];
+        const task=(async()=>{
+          const r=await fetchImpl(chunkURL(item.path,base),{signal:abort.signal,credentials:'omit',cache:'force-cache',mode:'cors'});
+          if(!r.ok)fail('A model download part is unavailable.');
+          const chunk=new Uint8Array(await r.arrayBuffer());
+          if(chunk.length!==item.bytes||await digest(chunk)!==item.sha256)fail('A model download part failed its integrity check.');
+          if(abort.signal.aborted)throw abort.signal.reason??Error('Model loading cancelled.');
+          loaded+=chunk.length;progress('download');return{chunk};
+        })().catch(error=>{firstFailure??=error;abort.abort(firstFailure);return{error:firstFailure};});
+        pending.set(partIndex,task);
+      }
+    };
+    const compressed=new ReadableStream({
+      start(controller){streamController=controller;abort.signal.addEventListener('abort',stop,{once:true});if(abort.signal.aborted)stop();else prefetch();},
+      async pull(controller){try{
+        if(abort.signal.aborted)throw firstFailure??abort.signal.reason??Error('Model loading cancelled.');
+        if(index===a.chunks.length){
+          if(received!==a.compressed.bytes)fail('A model array download is incomplete.');
+          finished=true;abort.signal.removeEventListener('abort',stop);controller.close();return;
+        }
+        prefetch();
+        const result=await pending.get(index);
+        if(result.error)throw result.error;
+        if(abort.signal.aborted)throw firstFailure??abort.signal.reason??Error('Model loading cancelled.');
+        pending.delete(index++);received+=result.chunk.length;controller.enqueue(result.chunk);
+      }catch(error){firstFailure??=error;abort.abort(firstFailure);stop();}},
+      cancel(reason){abort.abort(reason);stop();}
+    },{highWaterMark:0});
     const reader=compressed.pipeThrough(new DecompressionStream('gzip')).getReader();
     try{for(;;){const item=await reader.read();if(item.done)break;if(offset+item.value.length>bytes.length)fail('A model source array is too large.');bytes.set(item.value,offset);offset+=item.value.length;decodedBytes+=item.value.length;progress('decode');}
       if(offset!==bytes.length||index!==a.chunks.length||await digest(bytes)!==a.sha256)fail('The restored runtime model array differs.');arrays[name]=new Uint32Array(bytes.buffer);
@@ -34,3 +64,4 @@ export async function prepareExactExtSplats(manifestURL,{expectedModel,manifestS
   const integrity={deliveryManifestSHA256Verified:true,allCompressedChunkSHA256Verified:true,allSixRestoredArraySHA256Verified:true,gzipCRCValidatedByPlatform:true,acceptedOriginalPLYSha256:source.sha256,pointCount:source.pointCount,storedSHDegree:3,activeSHDegree:3,additionalQuantization:false,LOD:false,paddedCapacity:capacity};progress('verified');
   return{meshOptions:{extSplats,lod:false},verified:Promise.resolve(integrity),manifest,integrity};
 }
+
