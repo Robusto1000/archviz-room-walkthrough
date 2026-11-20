@@ -5,9 +5,9 @@
 export function createViewGate({
   readState,requestFrame,onState=()=>{},
   now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout,
-  pollMs=250,quietMs=1000,maxWaitMs=60000
+  pollMs=250,quietMs=750,maxWaitMs=60000
 }){
-  let status='idle',reason='',epoch=0,timer=null,began=0,pausedAt=0,quietSince=null,snapshot=null,sampling=false;
+  let status='idle',reason='',epoch=0,timer=null,began=0,pausedAt=0,quietSince=null,snapshot=null,sampling=false,lastSignature=null,previewOffered=false,longWaitNotified=false;
   const clear=()=>{if(timer!==null)cancel(timer);timer=null;};
   const event=(next,extra={})=>{status=next;onState({status:next,reason,snapshot,...extra});};
   const arm=delay=>{
@@ -19,7 +19,10 @@ export function createViewGate({
     sampling=true;
     try{
       snapshot=readState();const time=now();
-      if(time-began>=maxWaitMs){clear();event('timeout');return;}
+      onState({status:'progress',reason,snapshot,elapsedMs:time-began});
+      if(time-began>=12000&&!previewOffered){previewOffered=true;onState({status:'preview-available',reason,snapshot});}
+      if(time-began>=maxWaitMs&&!longWaitNotified){longWaitNotified=true;onState({status:'timeout',reason,snapshot});}
+      if(snapshot.signature!==lastSignature){lastSignature=snapshot.signature;quietSince=null;}
       if(snapshot.ready&&snapshot.activeSplats>0&&!snapshot.pending&&!snapshot.needsFrame){
         if(quietSince===null)quietSince=time;
         const remaining=quietMs-(time-quietSince);
@@ -37,7 +40,7 @@ export function createViewGate({
     begin(nextReason='startup'){
       if(status==='stopped')return;
       epoch++;clear();reason=nextReason;began=now();quietSince=null;snapshot=null;
-      event('waiting');arm(0);
+      lastSignature=null;previewOffered=false;longWaitNotified=false;event('waiting');arm(0);
     },
     notify(){if(status==='waiting'&&!sampling)arm(0);},
     pause(){

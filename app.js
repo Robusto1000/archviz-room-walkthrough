@@ -1,13 +1,13 @@
 import * as THREE from 'three';
-import {SparkRenderer,SplatMesh,ExtSplats} from '@sparkjsdev/spark';
+let SparkRenderer,SplatMesh,ExtSplats;
 import {validateCamera} from './camera.js';
 import {walkingSetup} from './walking.js';
 import {prepareExactExtSplats} from './ext-delivery.js';
-import {chooseProfile,selectQuality,getMobilePreset,readInterrupted,markAttempt,clearAttempt,validateCapabilities,loadMobileAsset,mobileMeshOptions,mobileRenderSize} from './mobile-loader.js?v=mobile-v3';
+import {chooseProfile,selectQuality,getMobilePreset,readInterrupted,markAttempt,clearAttempt,validateCapabilities,loadMobileAsset,mobileMeshOptions,mobileRenderSize} from './mobile-loader.js?v=mobile-v4';
 
-import {joystickVector,movementAxes,nativeFullscreenAvailable,standaloneMode,hasPendingDetail,createDetailMonitor} from './viewer-input.js?v=mobile-v3';
+import {joystickVector,movementAxes,nativeFullscreenAvailable,standaloneMode,hasPendingDetail,createDetailMonitor} from './viewer-input.js?v=mobile-v4';
 
-import {createViewGate} from './mobile-startup.js?v=mobile-v3';
+import {createViewGate} from './mobile-startup.js?v=mobile-v4';
 
 const $=id=>document.getElementById(id);
 const base=new URL('./',import.meta.url);
@@ -16,7 +16,8 @@ const profile=chooseProfile(navigator);
 let activeQuality=selectQuality(location.search);
 let failed=false,modelReady=false,firstFramePending=false,installOpen=false,uiHidden=false;
 let inputCleanup,resetJoystick,resetViewInput,detailMonitor,lastDetailProbe=-Infinity;
-let viewGate,viewSettling=false,viewGateTimedOut=false,viewGateReason='startup';
+let viewGate,viewSettling=false,viewGateTimedOut=false,viewGateReason='startup',viewEpoch=0,lastPresented=null;
+const startupHistory=[];let lastHistoryAt=0;
 const joystick={x:0,y:0,active:false};
 function attemptStorage(){try{return sessionStorage;}catch{return undefined;}}
 function waitForStart(interrupted){
@@ -69,37 +70,52 @@ function setupViewportUI(){
   setViewerUI(standalone);update();
 }
 function readMobileReadiness(){
-  const pager=spark?.pager,worker=spark?.lodWorker;
-  const lodBusy=worker?.queue!=null||Object.keys(worker?.messages??{}).length>0;
-  const sorting=Boolean(spark?.sorting),sortPending=sorting||Boolean(spark?.sortDirty)||spark?.sortTimeoutId!==undefined;
-  const queued=Boolean(pager?.hasQueued?.()||pager?.readyUploads?.length||pager?.newUploads?.length);
-  const fetching=Boolean(pager?.isFetching?.());
-  const lodPending=Boolean(spark?.lodDirty||spark?.lodInitQueue?.length||spark?.lodUpdates?.length||(spark?.lastLod&&spark.currentLod!==spark.lastLod));
-  const mappingPending=Boolean(spark?.current&&spark?.display&&spark.current.mappingVersion!==spark.display.mappingVersion);
-  const activeSplats=Number(spark?.activeSplats)||0;
+  const pager=spark?.pager,lod=spark?.currentLod,display=spark?.display,current=spark?.current;
+  const priority=pager?.fetchPriority??[],limit=pager?.maxPages??0,eligible=[];
+  for(const item of priority){if(!eligible.some(p=>p.splats===item.splats&&p.chunk===item.chunk))eligible.push(item);if(eligible.length>=limit)break;}
+  const loaded=eligible.filter(item=>pager.getSplatsChunk(item.splats,item.chunk)).length;
+  const missingEligible=eligible.length-loaded;
+  const queued=Boolean(pager?.fetched?.length||pager?.newUploads?.length||pager?.readyUploads?.length||pager?.lodTreeUpdates?.length||spark?.lodUpdates?.length);
+  const positionMatches=Boolean(lod&&camera&&Math.hypot(lod.pos.x-camera.position.x,lod.pos.y-camera.position.y,lod.pos.z-camera.position.z)<.001);
+  const rotationMatches=Boolean(lod&&camera&&Math.abs(lod.quat.dot(camera.quaternion))>.99999);
+  const lodComplete=Boolean(lod&&lod===spark?.lastLod&&positionMatches&&rotationMatches);
+  const mappingMatches=Boolean(display&&current&&display.mappingVersion===current.mappingVersion&&!display.mappingChanged?.());
+  const frameMatches=Boolean(lastPresented&&lastPresented.epoch===viewEpoch&&lastPresented.mappingVersion===display?.mappingVersion&&lastPresented.version===display?.version&&lastPresented.activeSplats===spark?.activeSplats);
+  const activeSplats=Number(spark?.activeSplats)||0,target=getMobilePreset(activeQuality).lodSplatCount,detailEnough=activeSplats>=Math.floor(target*.9);
   const ready=Boolean(modelReady&&renderer&&spark&&splats);
-  const pending=!ready||lodBusy||sortPending||queued||fetching||lodPending||mappingPending||Boolean(spark?.dirty)||dirty||scheduled;
-  const needsFrame=Boolean(renderer&&!scheduled&&!lodBusy&&!sorting&&(queued||lodPending||mappingPending||spark?.sortDirty||spark?.dirty||dirty||(ready&&activeSplats===0)));
-  return{ready,activeSplats,pending,needsFrame};
+  const pending=!ready||!eligible.length||missingEligible>0||queued||!lodComplete||!mappingMatches||!frameMatches||!detailEnough;
+  const workerBusy=spark?.lodWorker?.queue!=null,sorting=Boolean(spark?.sorting);
+  const needsFrame=Boolean(renderer&&!scheduled&&!workerBusy&&!sorting&&(queued||(!frameMatches&&lodComplete&&mappingMatches)||(!activeSplats&&ready)));
+  const blockingReasons=[!ready&&'model',!eligible.length&&'page-plan',missingEligible>0&&'pages',queued&&'uploads',!lodComplete&&'view-selection',!mappingMatches&&'display-mapping',!frameMatches&&'presented-frame',!detailEnough&&'detail-level'].filter(Boolean);
+  const signature=[eligible.length,loaded,activeSplats,viewEpoch].join(':');
+  return{ready,activeSplats,pending,needsFrame,signature,blockingReasons,eligibleParts:eligible.length,loadedParts:loaded,missingEligible,queued,lodComplete,mappingMatches,frameMatches,detailEnough,target,advisory:{workerBusy,sorting,sortDirty:Boolean(spark?.sortDirty),sparkDirty:Boolean(spark?.dirty),appDirty:dirty,scheduled}};
 }
 function revealMobileView(){
   viewSettling=false;viewGateTimedOut=false;firstFramePending=false;clearAttempt(attemptStorage());detailMonitor?.resume();
-  $('viewport').classList.remove('preparing-view');$('status').hidden=true;$('progress').hidden=true;
+  $('viewport').classList.remove('preparing-view');$('view-cover').hidden=true;$('status').hidden=true;$('progress').hidden=true;
   $('wait-detail').hidden=true;$('open-preview').hidden=true;setBusy(false);
   $('detail-status').hidden=!(detailMonitor?.visible??false);requestFrame();
 }
 function onViewGateState(event){
   if(event.status==='waiting'){
-    viewSettling=true;firstFramePending=true;viewGateTimedOut=false;viewGateReason=event.reason;detailMonitor?.resume();
-    $('viewport').classList.add('preparing-view');setBusy(true);
+    viewSettling=true;viewEpoch++;lastPresented=null;firstFramePending=true;viewGateTimedOut=false;viewGateReason=event.reason;detailMonitor?.resume();
+    $('viewport').classList.add('preparing-view');$('view-cover').hidden=false;setBusy(true);
     status('Preparing room detail…','Loading and refining this room.');
     $('progress').hidden=false;$('progress').removeAttribute('value');
     $('wait-detail').hidden=true;$('open-preview').hidden=true;$('detail-status').hidden=true;
+  }else if(event.status==='progress'){
+    const s=event.snapshot;
+    if(event.elapsedMs>=12000&&s.activeSplats>0){$('open-preview').hidden=false;$('open-preview').disabled=false;}
+    if(s.eligibleParts)$('status-detail').textContent=s.missingEligible>0?'Loading room detail · '+s.loadedParts+' of '+s.eligibleParts+' parts':'Applying room detail…';
+    if(performance.now()-lastHistoryAt>=1000){lastHistoryAt=performance.now();startupHistory.push({elapsedMs:event.elapsedMs,...s});if(startupHistory.length>30)startupHistory.shift();}
+    if(new URL(location.href).searchParams.get('diagnostics')==='1'&&event.elapsedMs>=15000){$('copy-diagnostics').hidden=false;$('copy-diagnostics').disabled=false;}
+  }else if(event.status==='preview-available'){
+    if(spark?.activeSplats>0){$('open-preview').hidden=false;$('open-preview').disabled=false;}
   }else if(event.status==='settled')revealMobileView();
   else if(event.status==='timeout'){
-    viewGateTimedOut=true;detailMonitor?.pause();
-    status('Still preparing room detail','Detail is taking longer to load. You can keep waiting or open the current preview.');
-    $('progress').hidden=true;$('wait-detail').hidden=false;$('wait-detail').disabled=false;
+    viewGateTimedOut=true;
+    status('Still preparing room detail','Room detail is still loading. You can open the current preview while loading continues.');
+    $('progress').hidden=false;$('wait-detail').hidden=true;
     $('open-preview').hidden=!(spark?.activeSplats>0);$('open-preview').disabled=!(spark?.activeSplats>0);
   }else if(event.status==='error')failTour(event.error??Error('Room detail could not be prepared.'));
 }
@@ -107,7 +123,7 @@ function beginMobileGate(reason){
   keys.clear();resetViewInput?.();resetJoystick?.();viewGate?.begin(reason);if(document.hidden)viewGate?.pause();
 }
 function disposeTour(){
-  viewGate?.stop();viewGate=null;detailMonitor?.stop();detailMonitor=null;inputCleanup?.();inputCleanup=null;
+  $('view-cover').hidden=true;viewGate?.stop();viewGate=null;detailMonitor?.stop();detailMonitor=null;inputCleanup?.();inputCleanup=null;
   removeContextListener?.();removeContextListener=null;keys.clear();
   const canvas=renderer?.domElement;
   try{splats?.dispose();}catch{}splats=null;
@@ -136,7 +152,7 @@ async function json(path,expectedSha){
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 function status(title,detail,error=false){$('status').hidden=false;$('status-title').textContent=title;$('status-detail').textContent=detail;$('status').dataset.error=String(error);}
-function setBusy(value){busy=value;for(const button of document.querySelectorAll('button'))if(!['fullscreen','ui-toggle','exit-fullscreen','install-close'].includes(button.id))button.disabled=value;}
+function setBusy(value){busy=value;for(const button of document.querySelectorAll('button'))if(!['fullscreen','ui-toggle','exit-fullscreen','install-close','copy-diagnostics'].includes(button.id))button.disabled=value;}
 function queueFrame(){if(!renderer||failed)return;const probeTime=performance.now();if(probeTime-lastDetailProbe>=200){lastDetailProbe=probeTime;detailMonitor?.notify();}dirty=true;if(!scheduled&&!document.hidden){scheduled=true;requestAnimationFrame(animate);}}
 function requestFrame(){viewGate?.notify();queueFrame();}
 function markMotion(){const now=performance.now();if(now-lastMotion>250){frameWindow=now;frames=0;}lastMotion=now;}
@@ -174,6 +190,7 @@ function animate(time){
   const moved=move(dt);
   if(!renderer||failed)return;
   if(dirty||moved){dirty=false;try{renderer.render(scene,camera);}catch(error){failTour(error);return;}frames++;
+    if(profile.kind==='mobile')lastPresented={epoch:viewEpoch,mappingVersion:spark?.display?.mappingVersion,version:spark?.display?.version,activeSplats:spark?.activeSplats??0};
     if(profile.kind!=='mobile'&&modelReady&&firstFramePending&&(splats?.numSplats??0)>0){firstFramePending=false;clearAttempt(attemptStorage());
       $('status').hidden=true;setBusy(false);}}
   if(viewGateTimedOut&&spark?.activeSplats>0){$('open-preview').hidden=false;$('open-preview').disabled=false;}
@@ -241,6 +258,7 @@ async function start(){
   setupViewportUI();
   $('wait-detail').onclick=()=>beginMobileGate(viewGateReason);
   $('open-preview').onclick=()=>{if(spark?.activeSplats>0){viewGate?.cancel();revealMobileView();}};
+  $('copy-diagnostics').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(globalThis.__archvizQA?.(),null,2));$('copy-diagnostics').textContent='Copied';}catch{$('copy-diagnostics').textContent='Copy unavailable';}};
   setBusy(true);$('retry').onclick=()=>location.reload();
   manifest=await json('./manifest.json');
   if(!manifest.model||manifest.model.pointCount!==5059728||manifest.model.shDegree!==3||manifest.model.sha256!=='b6f31ca6941ec74e8cb746ba568fb5e74fec101b1a11b66521ce0d9ea27d673c')throw Error('The apartment model identity could not be verified.');
@@ -250,6 +268,8 @@ async function start(){
   const navData=await json(manifest.navigation.path,manifest.navigation.sha256);
   navigation=walkingSetup(manifest,navData,manifest.rooms);
   await waitForStart(readInterrupted(attemptStorage()));
+  const runtime=await import(profile.kind==='mobile'?'./vendor/spark.mobile-fixed.js?v=mobile-v4':'./vendor/spark.module.js');
+  ({SparkRenderer,SplatMesh,ExtSplats}=runtime);
   loadAbort=new AbortController();markAttempt(attemptStorage(),profile.kind);
   const mobileAsset=profile.kind==='mobile'?await loadMobileAsset(new URL('mobile-model-v3.json',base),{signal:loadAbort.signal,quality:activeQuality}):null;
   status('Opening the apartment',profile.kind==='mobile'?'Loading the mobile tour…':'Loading the full desktop tour…');
@@ -291,9 +311,9 @@ async function start(){
   $('model-info').textContent=profile.kind==='mobile'?'Mobile preview · '+getMobilePreset(activeQuality).label+' · visual quality under review':'Work in progress · visual quality under review';
   requestFrame();
 }
-if(new URL(location.href).searchParams.get('qa')==='1'){
+if(new URL(location.href).searchParams.get('qa')==='1'||new URL(location.href).searchParams.get('diagnostics')==='1'){
   Object.defineProperty(globalThis,'__archvizQA',{configurable:false,writable:false,value:()=>Object.freeze({
-    profile:{...profile},activeQuality:profile.kind==='mobile'?{...getMobilePreset(activeQuality)}:null,sourceMode:profile.kind==='mobile'?'mobile-paged-rad':'desktop-exact-sh3',ready:modelReady&&!firstFramePending&&!viewSettling,loading:busy,failed,
+    startupHistory:startupHistory.map(s=>({...s})),profile:{...profile},activeQuality:profile.kind==='mobile'?{...getMobilePreset(activeQuality)}:null,sourceMode:profile.kind==='mobile'?'mobile-paged-rad':'desktop-exact-sh3',ready:modelReady&&!firstFramePending&&!viewSettling,loading:busy,failed,
     spark:spark?{maxPagedSplats:spark.maxPagedSplats,lodSplatCount:spark.lodSplatCount,numLodFetchers:spark.numLodFetchers,pagedExtSplats:spark.pagedExtSplats,accumExtSplats:spark.accumExtSplats,enableLod:spark.enableLod}:null,
     numSplats:splats?.numSplats??0,maxSh:splats?.maxSh??null,joystick:{...joystick},uiHidden,installOpen,viewSettling,viewGateStatus:viewGate?.status??null,viewReadiness:profile.kind==='mobile'?readMobileReadiness():null,detailPending:hasPendingDetail(spark),detailIndicatorVisible:detailMonitor?.visible??false,
     currentCamera:camera?{position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),fov:camera.fov}:null,

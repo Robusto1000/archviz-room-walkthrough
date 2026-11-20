@@ -28,4 +28,4 @@ body.ui-minimal header,body.ui-minimal footer{display:none}
 #install-panel h2{font-size:1.15rem;margin:0 0 .75rem}#install-panel p,#install-panel li{font-size:.9rem;line-height:1.5;color:#d2dbe4}#install-panel ol{padding-left:1.3rem}#install-panel li{margin:.5rem 0}#install-close{margin-top:.5rem}
 @media(max-width:700px){footer{padding-right:7rem}#ui-toggle,#exit-fullscreen{font-size:.75rem;padding:.4rem .55rem}}
 
-#viewport.preparing-view canvas{opacity:0}#wait-detail,#open-preview{margin:.8rem .3rem 0}
+#viewport.preparing-view canvas{opacity:1}#view-cover{position:fixed;inset:0;background:#121518;z-index:18;pointer-events:none}#wait-detail,#open-preview{margin:.8rem .3rem 0}
