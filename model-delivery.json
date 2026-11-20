@@ -1,0 +1,238 @@
+{
+  "schemaVersion": 1,
+  "encoding": "spark-extsplats-gzip-chunks",
+  "original": {
+    "bytes": 1194097286,
+    "sha256": "b6f31ca6941ec74e8cb746ba568fb5e74fec101b1a11b66521ce0d9ea27d673c",
+    "pointCount": 5059728,
+    "shDegree": 3
+  },
+  "spark": {
+    "version": "2.4.0",
+    "vendorSha256": "5ae86ab35d4ceb655db486dcc336299775bb314c280d7e5b39f64e4539f8e0e9",
+    "embeddedWasmSha256": "70603a5ad84dc0d1dc5661288d0e99d97162a9dc2ffe29ac55b7436ded20f36c",
+    "embeddedWorkerSha256": "a27a6d06b0e803d4129fb2350e93a1db6c8d8440484218690ce58e95d61d2d22"
+  },
+  "numSplats": 5059728,
+  "storedSHDegree": 3,
+  "activeSHDegree": 3,
+  "paddedCapacity": 8388608,
+  "arrays": [
+    {
+      "name": "ext0",
+      "type": "Uint32Array",
+      "elements": 33554432,
+      "bytes": 134217728,
+      "sha256": "f90c003a242e83bc448b65d0cd29c75cd7c50127a13733dcda3bab2546244361",
+      "encoding": "gzip-chunks",
+      "compressed": {
+        "bytes": 68099079,
+        "sha256": "421e8debb4acd838ee4145bfda17ed0d68f251095f56f878896ffe38e585930f"
+      },
+      "chunks": [
+        {
+          "path": "model/ext0/part-00000.bin",
+          "bytes": 20971520,
+          "sha256": "522ba2add8ba159e1954b5f9f8a1f3f1e8478712e600632532ddbf36b6b438e2"
+        },
+        {
+          "path": "model/ext0/part-00001.bin",
+          "bytes": 20971520,
+          "sha256": "bcca9b241cd7d3242e0c1a3fa6156cd65f721c4b5d3c69ef3fea009a9c246ce3"
+        },
+        {
+          "path": "model/ext0/part-00002.bin",
+          "bytes": 20971520,
+          "sha256": "5f55c1f54d3d6026339e3cf9c6b97dccec4eb43d3df52c7528798a8d8948b693"
+        },
+        {
+          "path": "model/ext0/part-00003.bin",
+          "bytes": 5184519,
+          "sha256": "be112dc98930d59efdbddf981246c775ada52ffc15723fa91d9c0df7e82a84e8"
+        }
+      ]
+    },
+    {
+      "name": "ext1",
+      "type": "Uint32Array",
+      "elements": 33554432,
+      "bytes": 134217728,
+      "sha256": "cd54b3552c1c86f09b521e58cb5ab27807efe03fb2aeee2f743899091bcec357",
+      "encoding": "gzip-chunks",
+      "compressed": {
+        "bytes": 72456025,
+        "sha256": "b709699cf485e95407369b57286e059410d6ed69d3b69aa1530d344097ee006a"
+      },
+      "chunks": [
+        {
+          "path": "model/ext1/part-00000.bin",
+          "bytes": 20971520,
+          "sha256": "8128845d7d1c9e8f867e4bc0ad87a3aa398ddf58e3b721651b35718d44fe7cba"
+        },
+        {
+          "path": "model/ext1/part-00001.bin",
+          "bytes": 20971520,
+          "sha256": "81fc5455c666543168173bea1a9bf76e43676629231f4643b20cf64bc1251dd0"
+        },
+        {
+          "path": "model/ext1/part-00002.bin",
+          "bytes": 20971520,
+          "sha256": "2bc7ad48c662acd1e49277cbd1100e7da455b065ea4f20c19bbee46b7181a8e1"
+        },
+        {
+          "path": "model/ext1/part-00003.bin",
+          "bytes": 9541465,
+          "sha256": "a464fe2169a1bbf6897ced93ac91894e6b84dee06fa27119658957425718a6c8"
+        }
+      ]
+    },
+    {
+      "name": "sh1",
+      "type": "Uint32Array",
+      "elements": 33554432,
+      "bytes": 134217728,
+      "sha256": "3911ea4c8b46dc46bb89e80225693b4d539185ee8792bccf6b5d57ac2d3f1bc0",
+      "encoding": "gzip-chunks",
+      "compressed": {
+        "bytes": 77049162,
+        "sha256": "b4c56b557974ec0e0ddd4a23399c1d439d4a0b183129ab37143dd0d7b0dfdf78"
+      },
+      "chunks": [
+        {
+          "path": "model/sh1/part-00000.bin",
+          "bytes": 20971520,
+          "sha256": "8b3f899a1c2bd92448360d4950fff4490c9deff853b7ca210e97df44fe3c0869"
+        },
+        {
+          "path": "model/sh1/part-00001.bin",
+          "bytes": 20971520,
+          "sha256": "334867002e16f170e32ccab84fca70af8c1df8b456baced2113b2208f8489277"
+        },
+        {
+          "path": "model/sh1/part-00002.bin",
+          "bytes": 20971520,
+          "sha256": "2650d860042553b440094a0f57bcb9267cca3cde5027f489f1936e0411b2ad20"
+        },
+        {
+          "path": "model/sh1/part-00003.bin",
+          "bytes": 14134602,
+          "sha256": "d158e97cb24bc81c22410658f263e320c3b1765cd91fbb37f468f3bac257e21a"
+        }
+      ]
+    },
+    {
+      "name": "sh2",
+      "type": "Uint32Array",
+      "elements": 33554432,
+      "bytes": 134217728,
+      "sha256": "1536c94f9cefa3e86c41943eb0401a7b54c51c19dfc0726e41815e399f7b13bf",
+      "encoding": "gzip-chunks",
+      "compressed": {
+        "bytes": 77104121,
+        "sha256": "edb1e0c3567f1e4b2e9421230d822d70a968647ebc51e3528bd48ebe945be150"
+      },
+      "chunks": [
+        {
+          "path": "model/sh2/part-00000.bin",
+          "bytes": 20971520,
+          "sha256": "0a4bc004b8c59ceda83cd13b08246a20a575e3dddf1bace6d822439ee8b7aa1c"
+        },
+        {
+          "path": "model/sh2/part-00001.bin",
+          "bytes": 20971520,
+          "sha256": "aa8e8b2a0a6cb7629110fcd0c7f0399436f898c9986eb886557fcbb2411c78ca"
+        },
+        {
+          "path": "model/sh2/part-00002.bin",
+          "bytes": 20971520,
+          "sha256": "5a269a58e759bfc5a32340a7295b8d5e1068c94ab2e0922db881338fada1b046"
+        },
+        {
+          "path": "model/sh2/part-00003.bin",
+          "bytes": 14189561,
+          "sha256": "068b0033f07e45d8b63ffe11aee308cccf32eaf28f9f39c7299e850686a9b65d"
+        }
+      ]
+    },
+    {
+      "name": "sh3a",
+      "type": "Uint32Array",
+      "elements": 33554432,
+      "bytes": 134217728,
+      "sha256": "e01dc765f569fdfff6d9e2aa779378fa5139a6f339ea7a877d689918d3a7c0b6",
+      "encoding": "gzip-chunks",
+      "compressed": {
+        "bytes": 76345306,
+        "sha256": "c7807dab8f85e46e876f1075cef27b1cbae5758c35011fe6f2ee9039531aa53b"
+      },
+      "chunks": [
+        {
+          "path": "model/sh3a/part-00000.bin",
+          "bytes": 20971520,
+          "sha256": "ae9b0b9bd29eda9474b251e21354ff5507e068e6b1c2ad47dc478b8beb5ae478"
+        },
+        {
+          "path": "model/sh3a/part-00001.bin",
+          "bytes": 20971520,
+          "sha256": "c5eb5bfc7924ec897e946a458692cdb38e5966dc231f229bcb51ac8fd428a144"
+        },
+        {
+          "path": "model/sh3a/part-00002.bin",
+          "bytes": 20971520,
+          "sha256": "798ea65ae2f55d6625292bc8aa3c9126755ea2eb8c1473cc67d191941c1ccfd9"
+        },
+        {
+          "path": "model/sh3a/part-00003.bin",
+          "bytes": 13430746,
+          "sha256": "4bbbb61664d55561f4e90c95dbc151e21a3823c861068619f866afa32db70258"
+        }
+      ]
+    },
+    {
+      "name": "sh3b",
+      "type": "Uint32Array",
+      "elements": 33554432,
+      "bytes": 134217728,
+      "sha256": "51b79a1a050f3d4a0b8d601c20fef708cf8725bbb4ec683d10c1f926be31c55e",
+      "encoding": "gzip-chunks",
+      "compressed": {
+        "bytes": 76651106,
+        "sha256": "8227a25a72c1bcc5327c03d3bedb89264feb0413b067b29990d4955077d0a428"
+      },
+      "chunks": [
+        {
+          "path": "model/sh3b/part-00000.bin",
+          "bytes": 20971520,
+          "sha256": "5ea35a93bd8af6e9225660a9878aabf1c451536f1dd2ef9603ed608810e8ef4b"
+        },
+        {
+          "path": "model/sh3b/part-00001.bin",
+          "bytes": 20971520,
+          "sha256": "3361e64b444887380fed9d910e9239037ba1c154d1aebc91f075633d6241181c"
+        },
+        {
+          "path": "model/sh3b/part-00002.bin",
+          "bytes": 20971520,
+          "sha256": "d9b46299792fed294b7bba1477ff13f6b0d253ae7a75bcba6e6280fdf42dbd14"
+        },
+        {
+          "path": "model/sh3b/part-00003.bin",
+          "bytes": 13736546,
+          "sha256": "7feeaf69a579480d83d0a3e5461fdfbae478d44f8d180e626e49ccafaf3df868"
+        }
+      ]
+    }
+  ],
+  "emptyExtraTables": [
+    "sh1Codes",
+    "sh2Codes",
+    "sh3Codes",
+    "lodTree"
+  ],
+  "allPointsInOriginalOrder": true,
+  "additionalQuantization": false,
+  "LOD": false,
+  "byteOrder": "little-endian",
+  "semantics": "Exact byte snapshot of the same pinnedSpark ExtSplats decoder arrays already used by the accepted preview. Not lossless to originalfloatPLY; no additional loss relative to accepted runtime.",
+  "proof": "Twoindependent officialPLYdecodes with4MiBvs64KiBstreamchunks. Every exportedarray byte compared to seconddecoder output aftergzipchunk reload."
+}
